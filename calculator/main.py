@@ -1,4 +1,5 @@
 import flet as ft
+import math
 
 
 class CalcButton(ft.ElevatedButton):
@@ -90,6 +91,25 @@ class CalculatorApp(ft.Container):
                         ActionButton(text="=", button_clicked=self.button_clicked),
                     ]
                 ),
+                ft.Row(
+                    controls=[
+                        ExtraActionButton(
+                            text="sin", button_clicked=self.button_clicked
+                        ),
+                        ExtraActionButton(
+                            text="cos", button_clicked=self.button_clicked
+                        ),
+                        ExtraActionButton(
+                            text="tan", button_clicked=self.button_clicked
+                        ),
+                        ExtraActionButton(
+                            text="π", button_clicked=self.button_clicked
+                        ),
+                        ExtraActionButton(
+                            text="x²", button_clicked=self.button_clicked
+                        ),
+                    ]
+                ),
             ]
         )
 
@@ -136,8 +156,27 @@ class CalculatorApp(ft.Container):
                 self.result.value = str(
                     self.format_number(abs(float(self.result.value)))
                 )
+        elif data == "sin":
+                self.result.value = str(self.format_number(math.sin(math.radians(float(self.result.value)))))
+                self.new_operand = True
 
-        self.update()
+        elif data == "cos":
+                self.result.value = str(self.format_number(math.cos(math.radians(float(self.result.value)))))
+                self.new_operand = True
+
+        elif data == "tan":
+                self.result.value = str(self.format_number(math.tan(math.radians(float(self.result.value)))))
+                self.new_operand = True
+
+        elif data == "π":
+                self.result.value = str(math.pi)
+                self.new_operand = True
+
+        elif data == "x²":
+                self.result.value = str(self.format_number(float(self.result.value) ** 2))
+                self.new_operand = True
+
+        self.update()  
 
     def format_number(self, num):
         if num % 1 == 0:
@@ -204,6 +243,11 @@ def main(page: ft.Page):
         ft.ElevatedButton(text="0"),
         ft.ElevatedButton(text="."),
         ft.ElevatedButton(text="="),
+        ft.ElevatedButton(text="sin"),
+        ft.ElevatedButton(text="cos"),
+        ft.ElevatedButton(text="tan"),
+        ft.ElevatedButton(text="π"),
+        ft.ElevatedButton(text="x²"),
     )
 
 
@@ -221,6 +265,7 @@ def main(page: ft.Page):
                 ft.ElevatedButton(text="+/-"),
                 ft.ElevatedButton(text="%"),
                 ft.ElevatedButton(text="/"),
+                ft.ElevatedButton(text="sin"),
             ]
         ),
         ft.Row(
@@ -229,6 +274,7 @@ def main(page: ft.Page):
                 ft.ElevatedButton(text="8"),
                 ft.ElevatedButton(text="9"),
                 ft.ElevatedButton(text="*"),
+                ft.ElevatedButton(text="cos"),
             ]
         ),
         ft.Row(
@@ -237,6 +283,7 @@ def main(page: ft.Page):
                 ft.ElevatedButton(text="5"),
                 ft.ElevatedButton(text="6"),
                 ft.ElevatedButton(text="-"),
+                ft.ElevatedButton(text="tan"),
             ]
         ),
         ft.Row(
@@ -245,6 +292,7 @@ def main(page: ft.Page):
                 ft.ElevatedButton(text="2"),
                 ft.ElevatedButton(text="3"),
                 ft.ElevatedButton(text="+"),
+                ft.ElevatedButton(text="π"),
             ]
         ),
         ft.Row(
@@ -252,6 +300,7 @@ def main(page: ft.Page):
                 ft.ElevatedButton(text="0"),
                 ft.ElevatedButton(text="."),
                 ft.ElevatedButton(text="="),
+                ft.ElevatedButton(text="x²"),
             ]
         ),
     )
@@ -302,6 +351,7 @@ def main(page: ft.Page):
                             ExtraActionButton(text="+/-"),
                             ExtraActionButton(text="%"),
                             ActionButton(text="/"),
+                            ExtraActionButton(text="sin"),
                         ]
                     ),
                     ft.Row(
@@ -310,6 +360,7 @@ def main(page: ft.Page):
                             DigitButton(text="8"),
                             DigitButton(text="9"),
                             ActionButton(text="*"),
+                            ExtraActionButton(text="cos"),
                         ]
                     ),
                     ft.Row(
@@ -318,6 +369,7 @@ def main(page: ft.Page):
                             DigitButton(text="5"),
                             DigitButton(text="6"),
                             ActionButton(text="-"),
+                            ExtraActionButton(text="tan"),
                         ]
                     ),
                     ft.Row(
@@ -326,6 +378,7 @@ def main(page: ft.Page):
                             DigitButton(text="2"),
                             DigitButton(text="3"),
                             ActionButton(text="+"),
+                            ExtraActionButton(text="π"),
                         ]
                     ),
                     ft.Row(
@@ -333,6 +386,7 @@ def main(page: ft.Page):
                             DigitButton(text="0", expand=2),
                             DigitButton(text="."),
                             ActionButton(text="="),
+                            ExtraActionButton(text="x²"),
                         ]
                     ),
                 ]
@@ -390,6 +444,7 @@ class CalculatorApp(ft.Container):
                         ExtraActionButton(text="+/-"),
                         ExtraActionButton(text="%"),
                         ActionButton(text="/"),
+                        ExtraActionButton(text="sin"),
                     ]
                 ),
                 ft.Row(
@@ -398,6 +453,7 @@ class CalculatorApp(ft.Container):
                         DigitButton(text="8"),
                         DigitButton(text="9"),
                         ActionButton(text="*"),
+                        ExtraActionButton(text="cos"),
                     ]
                 ),
                 ft.Row(
@@ -406,6 +462,7 @@ class CalculatorApp(ft.Container):
                         DigitButton(text="5"),
                         DigitButton(text="6"),
                         ActionButton(text="-"),
+                        ExtraActionButton(text="tan"),
                     ]
                 ),
                 ft.Row(
@@ -414,6 +471,7 @@ class CalculatorApp(ft.Container):
                         DigitButton(text="2"),
                         DigitButton(text="3"),
                         ActionButton(text="+"),
+                        ExtraActionButton(text="π"),
                     ]
                 ),
                 ft.Row(
@@ -421,6 +479,7 @@ class CalculatorApp(ft.Container):
                         DigitButton(text="0", expand=2),
                         DigitButton(text="."),
                         ActionButton(text="="),
+                        ExtraActionButton(text="x²"),
                     ]
                 ),
             ]
@@ -492,6 +551,7 @@ class CalculatorApp(ft.Container):
                         ),
                         ExtraActionButton(text="%", button_clicked=self.button_clicked),
                         ActionButton(text="/", button_clicked=self.button_clicked),
+                        ExtraActionButton(text="sin", button_clicked=self.button_clicked),
                     ]
                 ),
                 ft.Row(
@@ -500,6 +560,7 @@ class CalculatorApp(ft.Container):
                         DigitButton(text="8", button_clicked=self.button_clicked),
                         DigitButton(text="9", button_clicked=self.button_clicked),
                         ActionButton(text="*", button_clicked=self.button_clicked),
+                        ExtraActionButton(text="cos", button_clicked=self.button_clicked),
                     ]
                 ),
                 ft.Row(
@@ -508,6 +569,7 @@ class CalculatorApp(ft.Container):
                         DigitButton(text="5", button_clicked=self.button_clicked),
                         DigitButton(text="6", button_clicked=self.button_clicked),
                         ActionButton(text="-", button_clicked=self.button_clicked),
+                        ExtraActionButton(text="tan", button_clicked=self.button_clicked),
                     ]
                 ),
                 ft.Row(
@@ -516,6 +578,7 @@ class CalculatorApp(ft.Container):
                         DigitButton(text="2", button_clicked=self.button_clicked),
                         DigitButton(text="3", button_clicked=self.button_clicked),
                         ActionButton(text="+", button_clicked=self.button_clicked),
+                        ExtraActionButton(text="π", button_clicked=self.button_clicked),
                     ]
                 ),
                 ft.Row(
@@ -525,6 +588,7 @@ class CalculatorApp(ft.Container):
                         ),
                         DigitButton(text=".", button_clicked=self.button_clicked),
                         ActionButton(text="=", button_clicked=self.button_clicked),
+                        ExtraActionButton(text="x²", button_clicked=self.button_clicked),
                     ]
                 ),
             ]
