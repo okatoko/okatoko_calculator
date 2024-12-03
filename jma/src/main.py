@@ -10,7 +10,7 @@ def main(page: ft.Page):
     page.spacing = 0
     page.padding = 0
 
-     # 背景色を#87CEFAに設定
+    # 背景色を#87CEFAに設定
     page.bgcolor = "#87CEFA"
     page.horizontal_alignment = "stretch"
     page.padding = 0
@@ -32,7 +32,12 @@ def main(page: ft.Page):
     spinner = ft.ProgressRing(visible=False)
 
     # 天気予報の表示エリア
-    forecast_text = ft.Text("", size=20, expand=1)
+    forecast_column = ft.Column(
+        scroll="always",
+        expand=True,
+        alignment=ft.MainAxisAlignment.CENTER,
+        horizontal_alignment=ft.CrossAxisAlignment.CENTER
+    )
 
     def load_area_data():
         response = requests.get(AREA_URL)
@@ -47,38 +52,78 @@ def main(page: ft.Page):
     def on_region_select(e):
         area_code = e.control.data
         spinner.visible = True
+        forecast_column.controls.clear()
         page.update()
 
         # 天気予報を読み込む
         try:
             forecast_data = load_forecast_data(area_code)
-            forecast_info = parse_forecast_data(forecast_data)
-            forecast_text.value = forecast_info
+            forecast_cards = create_forecast_cards(forecast_data)
+            forecast_column.controls.extend(forecast_cards)
         except Exception as ex:
-            forecast_text.value = f"Error loading forecast data: {ex}"
+            forecast_column.controls.append(ft.Text(f"Error loading forecast data: {ex}", color="red"))
         finally:
             spinner.visible = False
             page.update()
 
-    def parse_forecast_data(data):
-        # シンプルな天気予報情報を抜粋して表示する
-        forecast_parts = []
-        for item in data:
-            if "timeSeries" in item:
-                for series in item["timeSeries"]:
-                    if "areas" in series:
-                        for area in series["areas"]:
-                            forecast_parts.append(f"{area['area']['name']} - {area['weatherCodes'][0]}")
+    def create_forecast_cards(data):
+        cards = []
+        date_index = 0
+        for series in data[0]["timeSeries"]:
+            if "areas" in series:
+                for area in series["areas"]:
+                    for weather_info in series["timeDefines"]:
+                        weather_code = 'N/A'
+                        temp_min_value = 'N/A'
+                        temp_max_value = 'N/A'
 
-        return "\n".join(forecast_parts)
+                        # Extract weather codes
+                        if 'weatherCodes' in area and date_index < len(area['weatherCodes']):
+                            weather_code = area['weatherCodes'][date_index]
+
+                        # Extract temperatures if available
+                        for temp_series in data:
+                            for ts in temp_series["timeSeries"]:
+                                if 'tempsMin' in ts["areas"][0] or 'tempsMax' in ts["areas"][0]:
+                                    for temp_area in ts["areas"]:
+                                        if temp_area['area']['code'] == area['area']['code']:
+                                            if 'tempsMin' in temp_area and date_index < len(temp_area['tempsMin']):
+                                                temp_min_value = temp_area['tempsMin'][date_index]
+                                            if 'tempsMax' in temp_area and date_index < len(temp_area['tempsMax']):
+                                                temp_max_value = temp_area['tempsMax'][date_index]
+                                            break
+
+                        date = weather_info.split("T")[0]
+                        card = ft.Container(
+                            content=ft.Column(
+                                [
+                                    ft.Text(date, size=16),
+                                    ft.Image(f"https://www.jma.go.jp/bosai/forecast/img/{weather_code}.png", width=50, height=50),
+                                    ft.Text(area['area']['name'], size=14),
+                                    ft.Text(f"Min: {temp_min_value}°C / Max: {temp_max_value}°C", size=14),
+                                ],
+                                alignment=ft.MainAxisAlignment.CENTER,
+                                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                            ),
+                            width=200,
+                            height=250,
+                            padding=ft.padding.all(10),
+                            margin=ft.margin.all(5),
+                            bgcolor="white",
+                            border_radius=ft.border_radius.all(5),
+                            shadow=ft.BoxShadow(offset=ft.Offset(2, 2), blur_radius=4),
+                        )
+                        cards.append(card)
+                        date_index += 1
+        return cards
 
     try:
         areas = load_area_data()
     except Exception as ex:
         page.add(ft.Text(f"Error loading area data: {ex}", color="red"))
         return
-    
-     # 地域名と都道府県を表示するためのエキスパンションタイルを作成
+
+    # 地域名と都道府県を表示するためのエキスパンションタイルを作成
     region_tiles = []
     for region_code, region in areas['centers'].items():
         prefecture_list_tiles = [
@@ -112,12 +157,13 @@ def main(page: ft.Page):
                     alignment=ft.MainAxisAlignment.START
                 ),
                 ft.Container(
-                    ft.Column(
+                    content=ft.Column(
                         [
                             spinner,
-                            forecast_text,
+                            forecast_column,
                         ],
-                        alignment=ft.MainAxisAlignment.START,
+                        alignment=ft.MainAxisAlignment.CENTER,
+                        horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                         expand=True,
                     ),
                     expand=True,
@@ -127,6 +173,5 @@ def main(page: ft.Page):
             expand=True,
         )
     )
-
 
 ft.app(main)
