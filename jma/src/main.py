@@ -77,6 +77,56 @@ def main(page: ft.Page):
     except Exception as ex:
         page.add(ft.Text(f"Error loading area data: {ex}", color="red"))
         return
+    
+     # 地域名と都道府県を表示するためのエキスパンションタイルを作成
+    region_tiles = []
+    for region_code, region in areas['centers'].items():
+        prefecture_list_tiles = [
+            ft.ListTile(
+                title=ft.Text(areas["offices"][pref]["name"]),
+                data=pref,
+                on_click=on_region_select
+            )
+            for pref in region["children"]
+            if pref in areas["offices"]
+        ]
+
+        expansion_tile = ft.ExpansionTile(
+            title=ft.Text(region['name']),
+            controls=prefecture_list_tiles,
+            initially_expanded=False
+        )
+        region_tiles.append(expansion_tile)
+
+    # 地域エキスパンションタイルのリストビューを作成
+    expansion_tile_list = ft.ListView(expand=1, controls=region_tiles)
+
+    # コンテナに左側のナビゲーション要素とコンテンツを追加
+    page.add(
+        ft.Row(
+            [
+                ft.Column(
+                    [header, expansion_tile_list],   # ヘッダーと地域リストを含める
+                    expand=True,
+                    scroll=True,  # スクロールを有効にする
+                    alignment=ft.MainAxisAlignment.START
+                ),
+                ft.Container(
+                    ft.Column(
+                        [
+                            spinner,
+                            forecast_text,
+                        ],
+                        alignment=ft.MainAxisAlignment.START,
+                        expand=True,
+                    ),
+                    expand=True,
+                    padding=ft.padding.all(10),
+                ),
+            ],
+            expand=True,
+        )
+    )
 
 
 ft.app(main)
