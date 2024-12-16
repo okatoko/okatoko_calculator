@@ -50,26 +50,27 @@ def save_forecast_data(area_code, forecast_data):
     conn = sqlite3.connect("weather_forecast.db")
     cursor = conn.cursor()
 
+    date_index = 0
     for series in forecast_data:
-        date_index = 0
         if "timeSeries" in series:
             for ts in series["timeSeries"]:
                 for time_define in ts["timeDefines"]:
                     weather_code = 'N/A'
-                    if 'areas' in ts and 'weatherCodes' in ts:
-                        weather_code = ts['areas'][0]['weatherCodes'][date_index]
-
                     temp_min_value = 'N/A'
                     temp_max_value = 'N/A'
+
                     if 'areas' in ts:
                         for area in ts["areas"]:
+                            if 'weatherCodes' in ts and date_index < len(ts['weatherCodes']):
+                                weather_code = ts['weatherCodes'][date_index]
+
                             if 'tempsMin' in ts and date_index < len(ts['tempsMin']):
                                 temp_min_value = (ts['tempsMin'][date_index])
                             if 'tempsMax' in ts and date_index < len(ts['tempsMax']):
                                 temp_max_value = (ts['tempsMax'][date_index])
 
                     date = time_define.split("T")[0]
-                    print(f"Inserting data: {area_code}, {date}, {weather_code}, {temp_min_value}, {temp_max_value}")
+                    print(f"Inserting data: {area_code, date, weather_code, temp_min_value, temp_max_value}")
                     cursor.execute("""
                         INSERT OR REPLACE INTO forecasts (area_code, date, weather_code, temp_min, temp_max)
                         VALUES (?, ?, ?, ?, ?)
@@ -88,12 +89,21 @@ def main(page: ft.Page):
     page.padding = 0
     page.spacing = 0
 
+    date_input = ft.TextField(label="選択日", hint_text="YYYY-MM-DD")
+
+    def on_search_click(e):
+        selected_date = date_input.value
+        if selected_date:
+            search_data(selected_date)
+
     header = ft.Container(
         height=100,
         padding=ft.padding.symmetric(horizontal=15),
         content=ft.Row(
             controls=[
                 ft.Text("天気予報", color="white", size=35),
+                date_input,
+                ft.ElevatedButton(text="検索", on_click=on_search_click, height=40)
             ],
         ),
         bgcolor="#4682B4",
@@ -126,9 +136,8 @@ def main(page: ft.Page):
         page.update()
 
         try:
-            load_forecast_data(area_code)  # 予報データを読み込み・保存
+            load_forecast_data(area_code)
 
-            # データベースから予報データを読み込んでカードを作成
             conn = sqlite3.connect("weather_forecast.db")
             cursor = conn.cursor()
             cursor.execute("""
@@ -143,6 +152,26 @@ def main(page: ft.Page):
             forecast_column.controls.extend(forecast_cards)
         except Exception as ex:
             forecast_column.controls.append(ft.Text(f"Error loading forecast data: {ex}", color="red"))
+        finally:
+            spinner.visible = False
+            page.update()
+
+    def search_data(selected_date):
+        try:
+            conn = sqlite3.connect("weather_forecast.db")
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT date, weather_code, temp_min, temp_max, name FROM forecasts
+                JOIN areas ON forecasts.area_code = areas.code
+                WHERE date = ?
+            """, (selected_date,))
+            rows = cursor.fetchall()
+            conn.close()
+            forecast_column.controls.clear()
+            forecast_cards = create_forecast_cards(rows)
+            forecast_column.controls.extend(forecast_cards)
+        except Exception as ex:
+            forecast_column.controls.append(ft.Text(f"Error loading historical data: {ex}", color="red"))
         finally:
             spinner.visible = False
             page.update()
