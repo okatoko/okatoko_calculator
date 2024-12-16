@@ -1,22 +1,96 @@
 import flet as ft
 import requests
 import json
+import sqlite3
 
 # 気象庁APIのエンドポイントURL
 AREA_URL = "http://www.jma.go.jp/bosai/common/const/area.json"
 FORECAST_URL_TEMPLATE = "https://www.jma.go.jp/bosai/forecast/data/forecast/{}.json"
 
+def init_db():
+    conn = sqlite3.connect("weather_forecast.db")
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS areas (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            code TEXT UNIQUE,
+            name TEXT,
+            parent_code TEXT
+        )
+    """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS forecasts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            area_code TEXT,
+            date TEXT,
+            weather_code TEXT,
+            temp_min TEXT,
+            temp_max TEXT
+        )
+    """)
+    conn.commit()
+    conn.close()
+
+def save_area_data(areas):
+    conn = sqlite3.connect("weather_forecast.db")
+    cursor = conn.cursor()
+
+    for region_code, region in areas['centers'].items():
+        for pref in region["children"]:
+            if pref in areas["offices"]:
+                cursor.execute("""
+                    INSERT OR IGNORE INTO areas (code, name, parent_code) VALUES (?, ?, ?)
+                """, (pref, areas["offices"][pref]["name"], region_code))
+
+    conn.commit()
+    conn.close()
+
+def save_forecast_data(area_code, forecast_data):
+    print(f"Saving forecast data for area_code: {area_code}")
+    conn = sqlite3.connect("weather_forecast.db")
+    cursor = conn.cursor()
+
+    date_index = 0
+    for series in forecast_data:
+        if "timeSeries" in series:
+            for ts in series["timeSeries"]:
+                for time_define in ts["timeDefines"]:
+                    weather_code = 'N/A'
+                    temp_min_value = 'N/A'
+                    temp_max_value = 'N/A'
+
+                    if 'areas' in ts:
+                        for area in ts["areas"]:
+                            if 'weatherCodes' in ts and date_index < len(ts['weatherCodes']):
+                                weather_code = ts['weatherCodes'][date_index]
+
+                            if 'tempsMin' in ts and date_index < len(ts['tempsMin']):
+                                temp_min_value = ts['tempsMin'][date_index]
+
+                            if 'tempsMax' in ts and date_index < len(ts['tempsMax']):
+                                temp_max_value = ts['tempsMax'][date_index]
+
+                            date = time_define.split("T")[0]
+                            print(f"Inserting data: {area_code}, {date}, {weather_code}, {temp_min_value}, {temp_max_value}")
+
+                            cursor.execute("""
+                                INSERT INTO forecasts (area_code, date, weather_code, temp_min, temp_max)
+                                VALUES (?, ?, ?, ?, ?)
+                            """, (area_code, date, weather_code, temp_min_value, temp_max_value))
+                    date_index += 1
+    print(f"Saved data for {date_index} entries")
+    conn.commit()
+    conn.close()
+
 def main(page: ft.Page):
     page.spacing = 0
     page.padding = 0
 
-    # 背景色を#87CEFAに設定
     page.bgcolor = "#87CEFA"
     page.horizontal_alignment = "stretch"
     page.padding = 0
     page.spacing = 0
 
-    # 上部のバーを作成
     header = ft.Container(
         height=100,
         padding=ft.padding.symmetric(horizontal=15),
@@ -28,10 +102,8 @@ def main(page: ft.Page):
         bgcolor="#4682B4",
     )
 
-    # データロード用のスピナー
     spinner = ft.ProgressRing(visible=False)
 
-    # 天気予報の表示エリア
     forecast_column = ft.Column(
         scroll="always",
         expand=True,
@@ -47,7 +119,8 @@ def main(page: ft.Page):
     def load_forecast_data(area_code):
         response = requests.get(FORECAST_URL_TEMPLATE.format(area_code))
         response.raise_for_status()
-        return response.json()
+        forecast_data = response.json()
+        save_forecast_data(area_code, forecast_data)  # データベースに保存
 
     def on_region_select(e):
         area_code = e.control.data
@@ -55,10 +128,21 @@ def main(page: ft.Page):
         forecast_column.controls.clear()
         page.update()
 
-        # 天気予報を読み込む
         try:
-            forecast_data = load_forecast_data(area_code)
-            forecast_cards = create_forecast_cards(forecast_data)
+            load_forecast_data(area_code)  # 予報データを読み込み・保存
+
+            # データベースから予報データを読み込んでカードを作成
+            conn = sqlite3.connect("weather_forecast.db")
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT date, weather_code, temp_min, temp_max, name FROM forecasts
+                JOIN areas ON forecasts.area_code = areas.code
+                WHERE area_code = ?
+            """, (area_code,))
+            rows = cursor.fetchall()
+            conn.close()
+
+            forecast_cards = create_forecast_cards(rows)
             forecast_column.controls.extend(forecast_cards)
         except Exception as ex:
             forecast_column.controls.append(ft.Text(f"Error loading forecast data: {ex}", color="red"))
@@ -66,64 +150,39 @@ def main(page: ft.Page):
             spinner.visible = False
             page.update()
 
-    def create_forecast_cards(data):
+    def create_forecast_cards(rows):
         cards = []
-        date_index = 0
-        for series in data[0]["timeSeries"]:
-            if "areas" in series:
-                for area in series["areas"]:
-                    for weather_info in series["timeDefines"]:
-                        weather_code = 'N/A'
-                        temp_min_value = 'N/A'
-                        temp_max_value = 'N/A'
-
-                        # Extract weather codes
-                        if 'weatherCodes' in area and date_index < len(area['weatherCodes']):
-                            weather_code = area['weatherCodes'][date_index]
-
-                        # Extract temperatures if available
-                        for temp_series in data:
-                            for ts in temp_series["timeSeries"]:
-                                if 'tempsMin' in ts["areas"][0] or 'tempsMax' in ts["areas"][0]:
-                                    for temp_area in ts["areas"]:
-                                        if temp_area['area']['code'] == area['area']['code']:
-                                            if 'tempsMin' in temp_area and date_index < len(temp_area['tempsMin']):
-                                                temp_min_value = temp_area['tempsMin'][date_index]
-                                            if 'tempsMax' in temp_area and date_index < len(temp_area['tempsMax']):
-                                                temp_max_value = temp_area['tempsMax'][date_index]
-                                            break
-
-                        date = weather_info.split("T")[0]
-                        card = ft.Container(
-                            content=ft.Column(
-                                [
-                                    ft.Text(date, size=16),
-                                    ft.Image(f"https://www.jma.go.jp/bosai/forecast/img/{weather_code}.png", width=50, height=50),
-                                    ft.Text(area['area']['name'], size=14),
-                                    ft.Text(f"Min: {temp_min_value}°C / Max: {temp_max_value}°C", size=14),
-                                ],
-                                alignment=ft.MainAxisAlignment.CENTER,
-                                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                            ),
-                            width=200,
-                            height=250,
-                            padding=ft.padding.all(10),
-                            margin=ft.margin.all(5),
-                            bgcolor="white",
-                            border_radius=ft.border_radius.all(5),
-                            shadow=ft.BoxShadow(offset=ft.Offset(2, 2), blur_radius=4),
-                        )
-                        cards.append(card)
-                        date_index += 1
+        for row in rows:
+            date, weather_code, temp_min_value, temp_max_value, area_name = row
+            card = ft.Container(
+                content=ft.Column(
+                    [
+                        ft.Text(date, size=16),
+                        ft.Image(f"https://www.jma.go.jp/bosai/forecast/img/{weather_code}.png", width=50, height=50),
+                        ft.Text(area_name, size=14),
+                        ft.Text(f"Min: {temp_min_value}°C / Max: {temp_max_value}°C", size=14),
+                    ],
+                    alignment=ft.MainAxisAlignment.CENTER,
+                    horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                ),
+                width=200,
+                height=250,
+                padding=ft.padding.all(10),
+                margin=ft.margin.all(5),
+                bgcolor="white",
+                border_radius=ft.border_radius.all(5),
+                shadow=ft.BoxShadow(offset=ft.Offset(2, 2), blur_radius=4),
+            )
+            cards.append(card)
         return cards
 
     try:
         areas = load_area_data()
+        save_area_data(areas)
     except Exception as ex:
         page.add(ft.Text(f"Error loading area data: {ex}", color="red"))
         return
 
-    # 地域名と都道府県を表示するためのエキスパンションタイルを作成
     region_tiles = []
     for region_code, region in areas['centers'].items():
         prefecture_list_tiles = [
@@ -135,7 +194,6 @@ def main(page: ft.Page):
             for pref in region["children"]
             if pref in areas["offices"]
         ]
-
         expansion_tile = ft.ExpansionTile(
             title=ft.Text(region['name']),
             controls=prefecture_list_tiles,
@@ -143,17 +201,15 @@ def main(page: ft.Page):
         )
         region_tiles.append(expansion_tile)
 
-    # 地域エキスパンションタイルのリストビューを作成
     expansion_tile_list = ft.ListView(expand=1, controls=region_tiles)
 
-    # コンテナに左側のナビゲーション要素とコンテンツを追加
     page.add(
         ft.Row(
             [
                 ft.Column(
-                    [header, expansion_tile_list],   # ヘッダーと地域リストを含める
+                    [header, expansion_tile_list],
                     expand=True,
-                    scroll=True,  # スクロールを有効にする
+                    scroll=True,
                     alignment=ft.MainAxisAlignment.START
                 ),
                 ft.Container(
@@ -174,6 +230,5 @@ def main(page: ft.Page):
         )
     )
 
-ft.app(main)
-
+init_db()
 ft.app(main)
