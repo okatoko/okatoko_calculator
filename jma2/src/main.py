@@ -1,9 +1,9 @@
 import flet as ft
 import requests
-import json
 import sqlite3
+from datetime import datetime
 
-# 気象庁APIのエンドポイントURL
+# APIのエンドポイントURL
 AREA_URL = "http://www.jma.go.jp/bosai/common/const/area.json"
 FORECAST_URL_TEMPLATE = "https://www.jma.go.jp/bosai/forecast/data/forecast/{}.json"
 
@@ -50,35 +50,32 @@ def save_forecast_data(area_code, forecast_data):
     conn = sqlite3.connect("weather_forecast.db")
     cursor = conn.cursor()
 
-    date_index = 0
     for series in forecast_data:
+        date_index = 0
         if "timeSeries" in series:
             for ts in series["timeSeries"]:
                 for time_define in ts["timeDefines"]:
                     weather_code = 'N/A'
+                    if 'areas' in ts and 'weatherCodes' in ts:
+                        weather_code = ts['areas'][0]['weatherCodes'][date_index]
+
                     temp_min_value = 'N/A'
                     temp_max_value = 'N/A'
-
                     if 'areas' in ts:
                         for area in ts["areas"]:
-                            if 'weatherCodes' in ts and date_index < len(ts['weatherCodes']):
-                                weather_code = ts['weatherCodes'][date_index]
-
                             if 'tempsMin' in ts and date_index < len(ts['tempsMin']):
-                                temp_min_value = ts['tempsMin'][date_index]
-
+                                temp_min_value = (ts['tempsMin'][date_index])
                             if 'tempsMax' in ts and date_index < len(ts['tempsMax']):
-                                temp_max_value = ts['tempsMax'][date_index]
+                                temp_max_value = (ts['tempsMax'][date_index])
 
-                            date = time_define.split("T")[0]
-                            print(f"Inserting data: {area_code}, {date}, {weather_code}, {temp_min_value}, {temp_max_value}")
-
-                            cursor.execute("""
-                                INSERT INTO forecasts (area_code, date, weather_code, temp_min, temp_max)
-                                VALUES (?, ?, ?, ?, ?)
-                            """, (area_code, date, weather_code, temp_min_value, temp_max_value))
+                    date = time_define.split("T")[0]
+                    print(f"Inserting data: {area_code}, {date}, {weather_code}, {temp_min_value}, {temp_max_value}")
+                    cursor.execute("""
+                        INSERT OR REPLACE INTO forecasts (area_code, date, weather_code, temp_min, temp_max)
+                        VALUES (?, ?, ?, ?, ?)
+                    """, (area_code, date, weather_code, temp_min_value, temp_max_value))
                     date_index += 1
-    print(f"Saved data for {date_index} entries")
+
     conn.commit()
     conn.close()
 
@@ -120,7 +117,7 @@ def main(page: ft.Page):
         response = requests.get(FORECAST_URL_TEMPLATE.format(area_code))
         response.raise_for_status()
         forecast_data = response.json()
-        save_forecast_data(area_code, forecast_data)  # データベースに保存
+        save_forecast_data(area_code, forecast_data)
 
     def on_region_select(e):
         area_code = e.control.data
